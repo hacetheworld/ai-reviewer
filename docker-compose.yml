@@ -1,0 +1,41 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./app/backend
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./app/backend/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ./app/backend
+    command: npm run worker
+    env_file:
+      - ./app/backend/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  ui:
+    build:
+      context: ./app/ui
+    ports:
+      - "3000:3000"
+    environment:
+      # Browser runs on your host, so call backend via localhost
+      VITE_API_BASE: http://localhost:3001
+    depends_on:
+      - backend

@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/build
+**/.vite
+**/.cache
+**/.turbo
+**/.next
+.git
+.github
+.vscode
+*.log

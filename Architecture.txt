@@ -1,0 +1,165 @@
+
+📄 AI PR Review System — Technical Documentation
+1. 🧭 System Architecture Overview
+This system connects GitHub events with an AI reviewer.
+At a high level, there are 5 parts:
+1. Frontend (React)
+⦁	Lets user:
+⦁	Enter GitHub PAT
+⦁	View repositories
+⦁	Enable/disable repos
+⦁	Configure rules
+⦁	View history
+2. Backend API (Node.js + Express)
+⦁	Handles:
+⦁	Authentication (via PAT)
+⦁	Repo management
+⦁	Webhook endpoint
+⦁	Talks to:
+⦁	GitHub API
+⦁	Database
+⦁	Queue
+3. Database (Supabase / PostgreSQL)
+Stores:
+⦁	User PAT (encrypted)
+⦁	Enabled repos
+⦁	Config rules
+⦁	Review history
+4. Queue (Redis + BullMQ)
+⦁	Stores background jobs
+⦁	Decouples webhook from processing
+5. Worker (Node.js process)
+⦁	Processes jobs asynchronously
+⦁	Calls AI
+⦁	Posts review to GitHub
+🧠 Key Idea
+⦁	API = fast (handles requests)
+⦁	Worker = slow (handles AI + processing)
+2. 📁 Folder Structure
+app/ ui/ src/ pages/ Login.jsx Dashboard.jsx Config.jsx History.jsx components/ App.jsx main.jsx backend/ src/ routes/ auth.js repos.js webhook.js services/ github.js ai.js encryption.js queue/ queue.js worker.js db/ client.js app.js 
+Keep everything flat and readable.
+3. ⚙️ Setup Instructions
+1. Clone repo
+git clone <repo> cd app 2. Backend setup
+cd backend npm install Environment variables (.env)
+PORT=5000 GITHUB_API=https://api.github.com ENCRYPTION_KEY=your_secret_key REDIS_URL=redis://localhost:6379 CLAUDE_API_KEY=your_claude_key WEBHOOK_SECRET=your_webhook_secret 3. Frontend setup
+cd ui npm install npm run dev 4. Start backend
+cd backend node src/app.js 5. Start worker
+node src/queue/worker.js 6. Setup Supabase
+Create tables using SQL editor (see schema below).
+4. 🗄️ Database Schema (Minimal)
+user_pat
+fieldtypeiduuidgithub_user_idtextusernametextencrypted_pattextcreated_attimestamprepos
+fieldtypeiduuidrepo_idtextownertextnametextis_enabledbooleanconfig
+fieldtypeiduuidrepo_idtextrulestexthistory
+fieldtypeiduuidrepo_idtextpr_numberintegersummarytextcommentsjsoncreated_attimestamp5. 🌐 API Design
+1. POST /auth/pat
+Input
+{ "pat": "ghp_xxxxx" } Output
+{ "success": true } What it does
+⦁	Calls GitHub /user
+⦁	If valid:
+⦁	Encrypts PAT
+⦁	Stores user
+2. GET /repos
+Headers
+Authorization: Bearer <session or user id> Output
+[ { "id": "123", "name": "repo-name", "owner": "username" } ] What it does
+⦁	Fetches repos from GitHub using PAT
+3. POST /repos/:id/enable
+Input
+{ "owner": "username", "repo": "repo-name" } Output
+{ "success": true } What it does
+⦁	Stores repo in DB
+⦁	Creates GitHub webhook
+4. POST /webhooks/github
+Input
+⦁	GitHub webhook payload
+Output
+{ "received": true } What it does
+⦁	Validates webhook signature
+⦁	Pushes job to queue
+⦁	DOES NOT process logic here
+6. 🔄 Queue + Worker Flow
+Why Queue?
+⦁	GitHub expects fast response (<10s)
+⦁	AI calls are slow (5–20s)
+👉 So we process in background
+Flow
+Step 1 — Webhook
+⦁	Receives PR event
+⦁	Pushes job to queue
+Step 2 — Worker
+Worker processes job:
+1.	Get repo + PR info
+2.	Fetch PR diff from GitHub
+3.	Load config from DB
+4.	Build prompt
+5.	Call AI
+6.	Parse response
+7.	Post review to GitHub
+8.	Save to history
+7. 📏 Handling Large Diffs
+Simple approach:
+⦁	Limit diff to ~3000 lines
+⦁	Ignore:
+⦁	package-lock.json
+⦁	yarn.lock
+⦁	binary files
+If truncated:
+⦁	Add note in prompt:
+"Diff truncated due to size"
+8. 🔐 Security (Simple but Correct)
+What is a PAT?
+A Personal Access Token is:
+⦁	A secret key that acts like a password
+⦁	Used to call GitHub APIs
+Why encrypt it?
+If leaked:
+⦁	Full repo access is compromised
+How to store
+⦁	Encrypt before saving:
+encrypt(pat, ENCRYPTION_KEY) Rules
+⦁	Never store plain text PAT
+⦁	Never send PAT to frontend again
+⦁	Never log PAT
+Webhook Security
+GitHub sends a signature header.
+You must:
+⦁	Recompute hash using WEBHOOK_SECRET
+⦁	Compare it
+This ensures request is from GitHub.
+9. 🔁 End-to-End Flow
+Step 1 — User Login
+⦁	User enters PAT
+⦁	Backend validates with GitHub
+⦁	PAT is encrypted and stored
+Step 2 — View Repos
+⦁	Backend fetches repos using PAT
+⦁	Frontend displays list
+Step 3 — Enable Repo
+⦁	User clicks enable
+⦁	Backend:
+⦁	Stores repo
+⦁	Creates webhook on GitHub
+Step 4 — PR Opened
+⦁	Developer opens PR on GitHub
+⦁	GitHub sends webhook to backend
+Step 5 — Queue Job
+⦁	Backend receives webhook
+⦁	Pushes job to queue
+Step 6 — Worker Runs
+⦁	Fetches PR diff
+⦁	Loads config
+⦁	Builds prompt
+⦁	Calls AI
+Step 7 — AI Review
+⦁	AI returns:
+⦁	Summary
+⦁	Comments
+Step 8 — Post to GitHub
+⦁	Backend posts comments to PR
+Step 9 — Save History
+⦁	Store review in database
+Step 10 — View History
+⦁	User sees past reviews in UI
