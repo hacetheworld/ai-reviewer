@@ -45,6 +45,16 @@ export async function listRepos() {
   return data;
 }
 
+export async function listReposByGithubUserId(githubUserId) {
+  const { data, error } = await supabase
+    .from('repos')
+    .select('*')
+    .eq('github_user_id', githubUserId)
+    .order('owner');
+  if (error) throw error;
+  return data;
+}
+
 export async function setRepoEnabled(repoId, enabled) {
   const { data, error } = await supabase
     .from('repos')
@@ -57,8 +67,32 @@ export async function setRepoEnabled(repoId, enabled) {
   return data;
 }
 
+export async function setRepoEnabledForUser(repoId, githubUserId, enabled) {
+  const { data, error } = await supabase
+    .from('repos')
+    .update({ is_enabled: enabled })
+    .eq('repo_id', repoId)
+    .eq('github_user_id', githubUserId)
+    .select('*')
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function getRepoByRepoId(repoId) {
   const { data, error } = await supabase.from('repos').select('*').eq('repo_id', repoId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getRepoByRepoIdAndUser(repoId, githubUserId) {
+  const { data, error } = await supabase
+    .from('repos')
+    .select('*')
+    .eq('repo_id', repoId)
+    .eq('github_user_id', githubUserId)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }

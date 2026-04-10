@@ -1,5 +1,11 @@
 import { listUserRepos, createWebhook, listRepoWebhooks, deleteRepoWebhook } from './githubService.js';
-import { upsertRepoWithUser, setRepoEnabled, listRepos as listReposDb, getRepoByRepoId } from '../models/repoModel.js';
+import {
+  upsertRepoWithUser,
+  setRepoEnabledForUser,
+  listReposByGithubUserId,
+  getRepoByRepoId,
+  getRepoByRepoIdAndUser,
+} from '../models/repoModel.js';
 import { getUserPatByGithubUserId } from '../models/userModel.js';
 import { decryptText } from './encryptionService.js';
 
@@ -8,8 +14,11 @@ export async function fetchGithubRepos(pat) {
   return repos;
 }
 
-export async function fetchGithubReposWithEnabled(pat) {
-  const [ghRepos, enabledRows] = await Promise.all([listUserRepos(pat), listReposDb()]);
+export async function fetchGithubReposWithEnabled({ pat, githubUserId }) {
+  const [ghRepos, enabledRows] = await Promise.all([
+    listUserRepos(pat),
+    listReposByGithubUserId(String(githubUserId)),
+  ]);
   const enabledSet = new Set((enabledRows || []).filter((r) => r.is_enabled).map((r) => String(r.repo_id)));
   return (ghRepos || []).map((r) => ({
     ...r,
@@ -31,8 +40,8 @@ export async function enableRepo({ repoId, owner, name, pat, webhookUrl, webhook
   return { repoId, owner, name, isEnabled: true, githubUserId };
 }
 
-export async function disableRepo({ repoId }) {
-  const repoRow = await getRepoByRepoId(repoId);
+export async function disableRepo({ repoId, githubUserId }) {
+  const repoRow = await getRepoByRepoIdAndUser(String(repoId), String(githubUserId));
   if (!repoRow) {
     const err = new Error('Repo not found');
     err.status = 404;
@@ -61,10 +70,11 @@ export async function disableRepo({ repoId }) {
     await deleteRepoWebhook({ token, owner: repoRow.owner, repo: repoRow.name, hookId: h.id });
   }
 
-  const row = await setRepoEnabled(repoId, false);
+  const row = await setRepoEnabledForUser(String(repoId), String(githubUserId), false);
   return row;
 }
 
-export async function listEnabledRepos() {
-  return listReposDb();
+export async function listEnabledRepos(githubUserId) {
+  const rows = await listReposByGithubUserId(String(githubUserId));
+  return (rows || []).filter((r) => r.is_enabled);
 }

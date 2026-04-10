@@ -83,7 +83,7 @@ export async function startWorker() {
 
       const pr = await getPullRequest({ token, owner, repo, prNumber });
       const files = await getPullRequestFiles({ token, owner, repo, prNumber });
-      const config = await getRepoConfig(String(repoId));
+      const config = await getRepoConfig(String(repoId), String(githubUserId));
 
       const diffText = buildDiffText(files);
       const ai = await reviewPullRequestWithAI({
@@ -107,6 +107,7 @@ export async function startWorker() {
 
       await insertHistory({
         repoId: String(repoId),
+        githubUserId: String(githubUserId),
         prNumber: Number(prNumber),
         summary: reviewBody,
         comments,
