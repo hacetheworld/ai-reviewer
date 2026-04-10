@@ -2,6 +2,16 @@
 
 Enable the AI agent on any repo and set the rules that the agent should check.
 
+## Screenshots
+
+| Login / Dashboard | Config | History |
+| --- | --- | --- |
+| ![Dashboard](assets/dashboard.png) | ![Config](assets/config.png) | ![History](assets/history.png) |
+
+**PR Review Example**
+
+![PR Review](assets/pr-review.png)
+
 ## How it works (request flow)
 
 1. User saves GitHub PAT in UI → backend stores it encrypted in `user_pat`.
@@ -21,6 +31,8 @@ Run these SQL migrations in Supabase Dashboard → **SQL Editor** (in order):
 - [supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql)
 - [supabase/migrations/0002_repos_add_github_user_id.sql](supabase/migrations/0002_repos_add_github_user_id.sql)
 - [supabase/migrations/0003_history_add_pr_title.sql](supabase/migrations/0003_history_add_pr_title.sql)
+- [supabase/migrations/0004_config_add_github_user_id.sql](supabase/migrations/0004_config_add_github_user_id.sql)
+- [supabase/migrations/0005_history_add_github_user_id.sql](supabase/migrations/0005_history_add_github_user_id.sql)
 
 ### 2) Environment variables (backend)
 
@@ -31,7 +43,8 @@ Create `app/backend/.env` (copy from `app/backend/.env.example`) and set at leas
 - `ENCRYPTION_KEY`
 - `WEBHOOK_SECRET`
 - `WEBHOOK_URL` (public URL GitHub can reach, e.g. via ngrok)
-- `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (default in .env.example)
 
 Redis (defaults are fine with docker-compose):
 - `REDIS_HOST`

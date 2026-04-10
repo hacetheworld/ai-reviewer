@@ -147,17 +147,21 @@ created_at (timestamp)
 repos
 id (uuid)
 repo_id (text)
+github_user_id (text)
 owner (text)
 name (text)
 is_enabled (boolean)
 config
 id (uuid)
 repo_id (text)
+github_user_id (text)
 rules (text)
 history
 id (uuid)
 repo_id (text)
+github_user_id (text)
 pr_number (int)
+pr_title (text)
 summary (text)
 comments (json)
 created_at (timestamp)
@@ -167,6 +171,14 @@ MUST encrypt before storing
 MUST use ENCRYPTION_KEY
 NEVER log PAT
 NEVER send PAT to frontend
+
+Tenant Scoping (Interim)
+All non-webhook endpoints MUST be scoped to a single GitHub user.
+Client MUST send:
+X-GitHub-User-Id: <githubUserId>
+Server MUST load + decrypt the encrypted PAT from DB for that github_user_id.
+
+NOTE: This header approach is NOT secure for public deployments (spoofable). For production, replace with real auth (PAT-per-request or server session).
 Webhook Validation
 Validate using WEBHOOK_SECRET
 Reject invalid requests
@@ -179,6 +191,7 @@ Job payload:
   owner,
   repo,
   prNumber
+  githubUserId
 }
 🧠 AI RULES
 Prompt Constraints

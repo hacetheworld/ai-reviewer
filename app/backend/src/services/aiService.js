@@ -1,43 +1,65 @@
 export async function reviewPullRequestWithAI({ title, description, diffText, rules }) {
-    return "AI response";   
-    
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is required');
+    throw new Error('GEMINI_API_KEY is required');
   }
 
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  // Examples: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash
+  // v1beta expects the model resource name: "models/<modelId>"
+  let model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  model = String(model).trim();
+  if (!model) model = 'gemini-1.5-flash';
+  if (!model.startsWith('models/')) {
+    model = `models/${model}`;
+  }
 
   const prompt = buildPrompt({ title, description, diffText, rules });
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const url = `https://generativelanguage.googleapis.com/v1beta/${encodeURIComponent(
+    model
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      messages: [
+      generationConfig: {
+        temperature: 0.2,
+      },
+      contents: [
         {
-          role: 'system',
-          content:
-            'You are a senior code reviewer. Return STRICT JSON only with keys: summary (string), comments (array). Each comment: {path (string), position (number), body (string)}. Do not include markdown or extra keys.',
+          role: 'user',
+          parts: [
+            {
+              text: [
+                'You are a senior code reviewer.',
+                'Return STRICT JSON only with keys: summary (string), comments (array).',
+                'Each comment: {path (string), position (number), body (string)}.',
+                'Do not include markdown or extra keys.',
+                '',
+                prompt,
+              ].join('\n'),
+            },
+          ],
         },
-        { role: 'user', content: prompt },
       ],
     }),
   });
 
-  const json = await res.json();
+  const json = await res.json().catch(() => null);
   if (!res.ok) {
     const err = new Error(json?.error?.message || 'AI request failed');
     err.details = json;
     throw err;
   }
 
-  const content = json?.choices?.[0]?.message?.content;
+  const content = json?.candidates?.[0]?.content?.parts
+    ?.map((p) => p?.text)
+    .filter(Boolean)
+    .join('');
+
   return parseAiJson(content);
 }
 

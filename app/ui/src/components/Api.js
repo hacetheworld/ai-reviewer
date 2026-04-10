@@ -1,10 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
 
 export async function apiRequest(path, { method = 'GET', body } = {}) {
+  const githubUserId = window.localStorage.getItem('githubUserId') || '';
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
+      ...(githubUserId ? { 'X-GitHub-User-Id': githubUserId } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });

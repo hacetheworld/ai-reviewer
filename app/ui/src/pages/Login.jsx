@@ -11,7 +11,10 @@ export default function Login() {
     e.preventDefault();
     setStatus({ loading: true, error: '', ok: '' });
     try {
-      await apiRequest('/auth/pat', { method: 'POST', body: { pat } });
+      const data = await apiRequest('/auth/pat', { method: 'POST', body: { pat } });
+      if (data?.githubUserId) {
+        window.localStorage.setItem('githubUserId', String(data.githubUserId));
+      }
       setStatus({ loading: false, error: '', ok: 'Saved.' });
       setPat('');
       navigate('/dashboard');

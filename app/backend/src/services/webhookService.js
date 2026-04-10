@@ -45,6 +45,10 @@ export async function handleGithubWebhook({ rawBody, signature, event, payload }
     throw err;
   }
 
+  if (repoRow.is_enabled === false) {
+    return { ignored: true };
+  }
+
   await prReviewQueue.add('pr-review', {
     repoId,
     owner,

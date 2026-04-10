@@ -1,45 +1,17 @@
 import { jsonError, jsonSuccess, requireString } from '../utils/validator.js';
 import { fetchGithubReposWithEnabled, enableRepo, disableRepo, listEnabledRepos } from '../services/repoService.js';
-import { decryptText } from '../services/encryptionService.js';
-import { supabase } from '../db/client.js';
 import { getRepoConfig, upsertRepoConfig } from '../models/configModel.js';
-
-async function getLatestPat() {
-  const { data, error } = await supabase
-    .from('user_pat')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    const err = new Error('No PAT configured');
-    err.status = 400;
-    throw err;
-  }
-  return decryptText(data.encrypted_pat);
-}
-
-async function getLatestUserRow() {
-  const { data, error } = await supabase
-    .from('user_pat')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    const err = new Error('No PAT configured');
-    err.status = 400;
-    throw err;
-  }
-  return data;
-}
+import { getRepoByRepoIdAndUser } from '../models/repoModel.js';
 
 export async function getRepos(req, res) {
   try {
-    const pat = await getLatestPat();
-    const data = await fetchGithubReposWithEnabled(pat);
+    const pat = req.auth?.pat;
+    const githubUserId = req.auth?.githubUserId;
+    if (!pat || !githubUserId) {
+      return res.status(401).json(jsonError('Unauthorized'));
+    }
+
+    const data = await fetchGithubReposWithEnabled({ pat, githubUserId });
     return res.json(jsonSuccess(data));
   } catch (e) {
     const status = e?.status || 500;
@@ -59,8 +31,11 @@ export async function postEnableRepo(req, res) {
     const err = err1 || err2 || err3;
     if (err) return res.status(400).json(jsonError(err));
 
-    const userRow = await getLatestUserRow();
-    const pat = decryptText(userRow.encrypted_pat);
+    const pat = req.auth?.pat;
+    const githubUserId = req.auth?.githubUserId;
+    if (!pat || !githubUserId) {
+      return res.status(401).json(jsonError('Unauthorized'));
+    }
 
     const webhookUrl = process.env.WEBHOOK_URL;
     const webhookSecret = process.env.WEBHOOK_SECRET;
@@ -77,7 +52,7 @@ export async function postEnableRepo(req, res) {
       pat,
       webhookUrl,
       webhookSecret,
-      githubUserId: userRow.github_user_id,
+      githubUserId,
     });
 
     return res.json(jsonSuccess(data));
@@ -93,7 +68,17 @@ export async function postDisableRepo(req, res) {
     const err = requireString(repoId, 'id');
     if (err) return res.status(400).json(jsonError(err));
 
-    const data = await disableRepo({ repoId });
+    const githubUserId = req.auth?.githubUserId;
+    if (!githubUserId) {
+      return res.status(401).json(jsonError('Unauthorized'));
+    }
+
+    const repoRow = await getRepoByRepoIdAndUser(String(repoId), String(githubUserId));
+    if (!repoRow) {
+      return res.status(403).json(jsonError('Forbidden'));
+    }
+
+    const data = await disableRepo({ repoId, githubUserId: String(githubUserId) });
     return res.json(jsonSuccess(data));
   } catch (e) {
     const status = e?.status || 500;
@@ -103,7 +88,12 @@ export async function postDisableRepo(req, res) {
 
 export async function getEnabledRepos(req, res) {
   try {
-    const data = await listEnabledRepos();
+    const githubUserId = req.auth?.githubUserId;
+    if (!githubUserId) {
+      return res.status(401).json(jsonError('Unauthorized'));
+    }
+
+    const data = await listEnabledRepos(String(githubUserId));
     return res.json(jsonSuccess(data));
   } catch (e) {
     const status = e?.status || 500;
@@ -117,7 +107,17 @@ export async function getRepoConfigController(req, res) {
     const err = requireString(repoId, 'id');
     if (err) return res.status(400).json(jsonError(err));
 
-    const data = await getRepoConfig(repoId);
+    const githubUserId = req.auth?.githubUserId;
+    if (!githubUserId) {
+      return res.status(401).json(jsonError('Unauthorized'));
+    }
+
+    const repoRow = await getRepoByRepoIdAndUser(String(repoId), String(githubUserId));
+    if (!repoRow) {
+      return res.status(403).json(jsonError('Forbidden'));
+    }
+
+    const data = await getRepoConfig(String(repoId), String(githubUserId));
     return res.json(jsonSuccess({ rules: data?.rules || '' }));
   } catch (e) {
     const status = e?.status || 500;
@@ -136,7 +136,17 @@ export async function postRepoConfigController(req, res) {
     const err = err1 || err2;
     if (err) return res.status(400).json(jsonError(err));
 
-    const data = await upsertRepoConfig({ repoId, rules });
+    const githubUserId = req.auth?.githubUserId;
+    if (!githubUserId) {
+      return res.status(401).json(jsonError('Unauthorized'));
+    }
+
+    const repoRow = await getRepoByRepoIdAndUser(String(repoId), String(githubUserId));
+    if (!repoRow) {
+      return res.status(403).json(jsonError('Forbidden'));
+    }
+
+    const data = await upsertRepoConfig({ repoId: String(repoId), githubUserId: String(githubUserId), rules });
     return res.json(jsonSuccess({ rules: data.rules }));
   } catch (e) {
     const status = e?.status || 500;
